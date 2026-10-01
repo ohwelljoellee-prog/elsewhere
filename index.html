@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elsewhere — Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream-bg: #fffaf3;
+    --panel: rgba(245, 235, 221, 0.5);
+    --tan: #f5ebdd;
+    --green: #75793c;
+    --green-translucent: rgba(117, 121, 60, 0.5);
+    --terracotta: #b3431d;
+    --terracotta-translucent: rgba(179, 67, 29, 0.5);
+    --grey: #6b6b6b;
+    --black: #1a1a1a;
+    --white-50: rgba(255, 255, 255, 0.5);
+    --photo-size: clamp(120px, 28vh, 260px);
+    --photo-gap: 24px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    background: var(--cream-bg);
+    color: var(--black);
+    min-height: 100vh;
+  }
+  .screen {
+    min-height: 100vh;
+    display: none;
+    flex-direction: column;
+    padding: 18px clamp(20px, 4vw, 64px) 24px;
+  }
+  .screen.active { display: flex; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .logo-mark { height: 64px; width: 64px; margin: 0 auto; display: block; }
+  .topbar .date {
+    font-size: 1rem;
+    color: var(--black);
+    white-space: nowrap;
+    min-width: 140px;
+    text-align: right;
+  }
+  .topbar .spacer { min-width: 140px; }
+
+  /* ---- Screen 1: Header / landing ---- */
+  #screen-landing {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 22px;
+  }
+  #screen-landing .logo-mark-large {
+    width: min(340px, 60vw);
+    height: min(340px, 60vw);
+  }
+  #screen-landing { cursor: pointer; }
+  .tap-hint {
+    font-size: 1rem;
+    font-style: italic;
+    color: var(--green);
+    opacity: 0.75;
+    margin: 0;
+  }
+
+  /* ---- Screen 2 / 3 shared layout ---- */
+  .pos-layout {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    max-width: 1480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .menu-col { flex: 1 1 600px; min-width: 0; }
+  .receipt-col { flex: 0 1 360px; min-width: 280px; display: flex; justify-content: center; }
+
+  .section-title {
+    font-size: 1.2rem;
+    margin: 0 0 10px;
+    text-align: center;
+  }
+  .drink-grid {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--photo-gap);
+    width: fit-content;
+    margin: 0 auto;
+  }
+  .divider-wave {
+    width: calc(var(--photo-size) * 2 + var(--photo-gap));
+    height: 10px;
+    background-image: url('assets/divider-wave.svg');
+    background-repeat: repeat-x;
+    background-position: left center;
+    background-size: auto 10px;
+    margin: 12px auto;
+    opacity: 0.7;
+  }
+  .drink-card {
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 0;
+    cursor: pointer;
+    text-align: center;
+    color: inherit;
+    position: relative;
+  }
+  .drink-card .photo-wrap {
+    width: var(--photo-size);
+    aspect-ratio: 289 / 282;
+    border-radius: 11%;
+    overflow: hidden;
+    border: 3px solid transparent;
+    transition: border-color 0.15s ease;
+  }
+  .drink-card.selected .photo-wrap {
+    border-color: var(--green);
+  }
+  .drink-card .photo-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 68%;
+    display: block;
+  }
+  .drink-card .drink-name {
+    margin-top: 6px;
+    font-size: 0.85rem;
+  }
+  .cart-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--terracotta);
+    color: white;
+    font-family: -apple-system, sans-serif;
+    font-size: 0.7rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .receipt-panel {
+    background: var(--tan);
+    border-radius: 2px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    padding: 30px 24px 24px;
+    min-height: 420px;
+    max-width: 380px;
+    width: 100%;
+    position: relative;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(107, 107, 107, 0.05) 0px,
+      rgba(107, 107, 107, 0.05) 1px,
+      transparent 1px,
+      transparent 5px
+    );
+  }
+  .receipt-panel::before,
+  .receipt-panel::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 12px;
+    background-image:
+      linear-gradient(135deg, var(--cream-bg) 50%, transparent 50%),
+      linear-gradient(45deg, var(--cream-bg) 50%, transparent 50%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 0;
+    background-repeat: repeat-x;
+  }
+  .receipt-panel::before { top: -1px; }
+  .receipt-panel::after { bottom: -1px; transform: scaleY(-1); }
+  .dashed-line { width: 100%; height: 2px; display: block; margin: 0; }
+  .item-separator { margin: 4px 0; }
+  #cart-items { margin: 6px 0; }
+  .empty-cart-msg {
+    color: var(--grey);
+    font-style: italic;
+    padding: 20px 0;
+    margin: 0;
+    text-align: center;
+  }
+  .item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 14px 0;
+  }
+  .item-row .qty { font-size: 1.2rem; padding-top: 2px; }
+  .item-detail { flex: 1; min-width: 0; }
+  .item-detail .name {
+    font-size: 1.15rem;
+    margin: 0 0 12px;
+  }
+  .item-detail .name.placeholder { color: var(--grey); font-style: italic; }
+  .milk-toggle {
+    display: flex;
+    max-width: 220px;
+  }
+  .milk-pill {
+    flex: 1;
+    text-align: center;
+    padding: 7px 16px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    background: var(--green-translucent);
+    color: var(--white-50);
+    border: 1px solid transparent;
+    box-sizing: border-box;
+  }
+  .milk-pill:first-child { border-radius: 16px 0 0 16px; }
+  .milk-pill:last-child { border-radius: 0 16px 16px 0; }
+  .milk-pill.selected {
+    background: var(--tan);
+    color: var(--grey);
+    border-color: var(--grey);
+  }
+  .qty-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding-top: 4px;
+  }
+  .qty-controls button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+  }
+  .qty-controls img { width: 24px; height: 24px; display: block; }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 4px;
+  }
+  .field-row input {
+    border: none;
+    background: none;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    color: var(--green);
+    font-size: 1.7rem;
+    width: 100%;
+    outline: none;
+  }
+  .field-row input::placeholder { color: var(--green); opacity: 0.85; }
+  .field-row img.edit-icon { width: 22px; height: 22px; flex-shrink: 0; }
+
+  .error-msg {
+    color: var(--terracotta);
+    font-family: -apple-system, sans-serif;
+    font-size: 0.85rem;
+    margin-top: 14px;
+    display: none;
+  }
+  .error-msg.visible { display: block; }
+
+  .pos-btn {
+    appearance: none;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 28px;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-size: 1.1rem;
+    color: white;
+    cursor: pointer;
+  }
+  .pos-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .submit-btn {
+    background: var(--terracotta-translucent);
+    display: block;
+    margin: 32px auto 0;
+    transition: background-color 0.15s ease;
+  }
+  .submit-btn.ready {
+    background: var(--terracotta);
+  }
+  .new-order-btn {
+    background: var(--terracotta);
+    display: block;
+    margin: 40px auto 0;
+  }
+
+  .sync-badge {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: var(--terracotta);
+    color: white;
+    font-family: -apple-system, sans-serif;
+    font-size: 0.8rem;
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 10;
+  }
+  .sync-badge.visible { display: block; }
+
+  /* ---- Screen 3: Confirmation ---- */
+  .confirm-panel {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 420px;
+  }
+  .confirm-panel .thank-you { font-size: 1.6rem; margin: 0 0 24px; }
+  .confirm-panel .customer-name { font-size: 2.4rem; color: var(--green); margin: 0 0 10px; }
+  .confirm-panel .order-num { font-size: 1.1rem; margin: 0; }
+  .confirm-panel .sync-note {
+    font-family: -apple-system, sans-serif;
+    font-size: 0.8rem;
+    color: var(--terracotta);
+    margin-top: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .receipt-col { flex-basis: 100%; }
+  }
+  @media (max-width: 480px) {
+    .drink-grid { gap: 14px; }
+    .section-title { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Screen 1: Header / landing -->
+  <section id="screen-landing" class="screen active" role="button" tabindex="0" aria-label="Tap anywhere to start an order">
+    <img src="assets/elsewhere-logo.png" alt="Elsewhere" class="logo-mark-large">
+    <p class="tap-hint">tap anywhere to order</p>
+  </section>
+
+  <!-- Screen 2: Order taking -->
+  <section id="screen-order" class="screen">
+    <div class="topbar">
+      <div class="spacer"></div>
+      <img src="assets/elsewhere-logo.png" alt="Elsewhere" class="logo-mark">
+      <div class="date" id="order-date"></div>
+    </div>
+
+    <div class="pos-layout">
+      <div class="menu-col">
+        <p class="section-title">matcha</p>
+        <div class="drink-grid" id="menu-matcha"></div>
+
+        <div class="divider-wave" role="presentation"></div>
+
+        <p class="section-title">hojicha</p>
+        <div class="drink-grid" id="menu-hojicha"></div>
+      </div>
+
+      <div class="receipt-col">
+        <div class="receipt-panel">
+          <div class="field-row">
+            <input type="text" id="customer-name" placeholder="Name" autocomplete="off">
+            <img src="assets/icon-edit.svg" alt="" class="edit-icon">
+          </div>
+
+          <img src="assets/line1.svg" alt="" class="dashed-line" style="margin-top:16px;">
+
+          <div id="cart-items"></div>
+
+          <img src="assets/line2.svg" alt="" class="dashed-line">
+
+          <div class="error-msg" id="order-error"></div>
+
+          <button class="pos-btn submit-btn" id="submit-btn">submit</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 3: Confirmation -->
+  <section id="screen-confirm" class="screen">
+    <div class="topbar">
+      <div class="spacer"></div>
+      <img src="assets/elsewhere-logo.png" alt="Elsewhere" class="logo-mark">
+      <div class="date" id="confirm-date"></div>
+    </div>
+
+    <div class="pos-layout">
+      <div class="menu-col">
+        <p class="section-title">matcha</p>
+        <div class="drink-grid" id="menu-matcha-confirm"></div>
+
+        <div class="divider-wave" role="presentation"></div>
+
+        <p class="section-title">hojicha</p>
+        <div class="drink-grid" id="menu-hojicha-confirm"></div>
+      </div>
+
+      <div class="receipt-col">
+        <div class="receipt-panel confirm-panel">
+          <p class="thank-you">thank you</p>
+          <p class="customer-name" id="confirm-name"></p>
+          <p class="order-num" id="confirm-order-number">#—</p>
+          <p class="sync-note" id="confirm-sync-note" style="display:none;"></p>
+          <button class="pos-btn new-order-btn" id="new-order-btn">new order</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sync-badge" id="sync-badge"></div>
+
+<script>
+  // ---- Config ----
+  // Paste the Web App URL from your Google Apps Script deployment here.
+  // See SETUP.md for how to create it.
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgYkhmRNeGo5EF8hoP5vJ8dh-4bWLB0TBYYKwmwKVHpfMiBaxpLHfUWAe5cti04sRy/exec";
+  const QUEUE_KEY = "elsewhere_pending_orders";
+
+  const MENU = {
+    matcha: [
+      { id: "iced-matcha", name: "iced matcha latte", photo: "assets/iced-matcha-latte.png" },
+      { id: "strawberry-matcha", name: "strawberry matcha latte", photo: "assets/strawberry-matcha-latte.png" }
+    ],
+    hojicha: [
+      { id: "iced-hojicha", name: "iced hojicha latte", photo: "assets/iced-hojicha-latte.png" },
+      { id: "strawberry-hojicha", name: "strawberry hojicha latte", photo: "assets/strawberry-hojicha-latte.png" }
+    ]
+  };
+
+  const state = { cart: [] }; // cart entries: { uid, drinkId, name, milk, qty }
+  let uidCounter = 0;
+  const makeUid = () => `item-${++uidCounter}`;
+
+  const screens = {
+    landing: document.getElementById("screen-landing"),
+    order: document.getElementById("screen-order"),
+    confirm: document.getElementById("screen-confirm")
+  };
+
+  function showScreen(name) {
+    Object.values(screens).forEach(s => s.classList.remove("active"));
+    screens[name].classList.add("active");
+  }
+
+  function formatDate() {
+    const d = new Date();
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${months[d.getMonth()]} ${d.getDate()} ${hh}:${mm}`;
+  }
+  document.getElementById("order-date").textContent = formatDate();
+  document.getElementById("confirm-date").textContent = formatDate();
+
+  function renderMenu(matchaElId, hojichaElId, interactive) {
+    const matchaEl = document.getElementById(matchaElId);
+    const hojichaEl = document.getElementById(hojichaElId);
+    matchaEl.innerHTML = "";
+    hojichaEl.innerHTML = "";
+
+    function makeCard(item) {
+      const el = document.createElement(interactive ? "button" : "div");
+      el.className = "drink-card";
+      el.type = interactive ? "button" : undefined;
+      el.dataset.id = item.id;
+      el.innerHTML = `<div class="photo-wrap"><img src="${item.photo}" alt="${item.name}"></div><p class="drink-name">${item.name}</p>`;
+      if (interactive) el.addEventListener("click", () => addToCart(item));
+      return el;
+    }
+
+    MENU.matcha.forEach(item => matchaEl.appendChild(makeCard(item)));
+    MENU.hojicha.forEach(item => hojichaEl.appendChild(makeCard(item)));
+  }
+
+  // ---- Cart (multiple drinks per order) ----
+  function addToCart(item) {
+    // Merge into an existing line for the same drink that hasn't had a milk chosen yet;
+    // once a line's milk is set, a new tap starts a fresh line (it may want a different milk).
+    let entry = state.cart.find(e => e.drinkId === item.id && e.milk === null);
+    if (entry) {
+      entry.qty += 1;
+    } else {
+      state.cart.push({ uid: makeUid(), drinkId: item.id, name: item.name, milk: null, qty: 1 });
+    }
+    renderCart();
+    updateDrinkBadges();
+    clearError();
+  }
+
+  function updateDrinkBadges() {
+    const counts = {};
+    state.cart.forEach(e => { counts[e.drinkId] = (counts[e.drinkId] || 0) + e.qty; });
+    document.querySelectorAll("#screen-order .drink-card").forEach(el => {
+      const existing = el.querySelector(".cart-badge");
+      const count = counts[el.dataset.id];
+      if (count) {
+        const badge = existing || document.createElement("span");
+        badge.className = "cart-badge";
+        badge.textContent = count;
+        if (!existing) el.appendChild(badge);
+      } else if (existing) {
+        existing.remove();
+      }
+    });
+  }
+
+  function renderCart() {
+    updateSubmitButtonState();
+    const container = document.getElementById("cart-items");
+    container.innerHTML = "";
+
+    if (state.cart.length === 0) {
+      container.innerHTML = `<p class="empty-cart-msg">select a drink</p>`;
+      return;
+    }
+
+    state.cart.forEach((entry, idx) => {
+      if (idx > 0) {
+        const sep = document.createElement("img");
+        sep.src = "assets/line1.svg";
+        sep.alt = "";
+        sep.className = "dashed-line item-separator";
+        container.appendChild(sep);
+      }
+
+      const row = document.createElement("div");
+      row.className = "item-row";
+      row.dataset.uid = entry.uid;
+      row.innerHTML = `
+        <div class="qty">${entry.qty}</div>
+        <div class="item-detail">
+          <p class="name">${entry.name}</p>
+          <div class="milk-toggle">
+            <div class="milk-pill${entry.milk === "whole" ? " selected" : ""}" data-milk="whole">whole</div>
+            <div class="milk-pill${entry.milk === "oat" ? " selected" : ""}" data-milk="oat">oat</div>
+          </div>
+        </div>
+        <div class="qty-controls">
+          <button type="button" class="qty-minus"><img src="assets/icon-minus.svg" alt="decrease quantity"></button>
+          <button type="button" class="qty-plus"><img src="assets/icon-plus.svg" alt="increase quantity"></button>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  document.getElementById("cart-items").addEventListener("click", (e) => {
+    const row = e.target.closest(".item-row");
+    if (!row) return;
+    const uid = row.dataset.uid;
+    const entry = state.cart.find(e2 => e2.uid === uid);
+    if (!entry) return;
+
+    const pill = e.target.closest(".milk-pill");
+    if (pill) {
+      entry.milk = pill.dataset.milk;
+      renderCart();
+      clearError();
+      return;
+    }
+    if (e.target.closest(".qty-plus")) {
+      entry.qty += 1;
+      renderCart();
+      updateDrinkBadges();
+      return;
+    }
+    if (e.target.closest(".qty-minus")) {
+      entry.qty -= 1;
+      if (entry.qty <= 0) {
+        state.cart = state.cart.filter(e2 => e2.uid !== uid);
+      }
+      renderCart();
+      updateDrinkBadges();
+      return;
+    }
+  });
+
+  function isOrderReady() {
+    const name = document.getElementById("customer-name").value.trim();
+    const cartOk = state.cart.length > 0 && state.cart.every(e => e.milk);
+    return name.length > 0 && cartOk;
+  }
+
+  function updateSubmitButtonState() {
+    document.getElementById("submit-btn").classList.toggle("ready", isOrderReady());
+  }
+
+  function clearError() {
+    const el = document.getElementById("order-error");
+    el.classList.remove("visible");
+    el.textContent = "";
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("order-error");
+    el.textContent = msg;
+    el.classList.add("visible");
+  }
+
+  function resetOrderForm() {
+    state.cart = [];
+    document.getElementById("customer-name").value = "";
+    renderCart();
+    updateDrinkBadges();
+    clearError();
+  }
+
+  function isConfigured() {
+    return APPS_SCRIPT_URL && !APPS_SCRIPT_URL.startsWith("PASTE_");
+  }
+
+  // ---- Local pending-order queue (so an order is never lost if the sheet write fails) ----
+  function getQueue() {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; }
+    catch { return []; }
+  }
+  function setQueue(q) {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
+  }
+  function queueOrder(order) {
+    const q = getQueue();
+    q.push({ ...order, queuedAt: Date.now(), localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
+    setQueue(q);
+    updateSyncBadge();
+  }
+  function updateSyncBadge() {
+    const badge = document.getElementById("sync-badge");
+    const n = getQueue().length;
+    if (n > 0) {
+      badge.textContent = n === 1 ? "1 order not yet synced" : `${n} orders not yet synced`;
+      badge.classList.add("visible");
+    } else {
+      badge.classList.remove("visible");
+    }
+  }
+  let flushInProgress = false;
+  async function flushQueue() {
+    if (!isConfigured() || flushInProgress) return;
+    const q = getQueue();
+    if (q.length === 0) return;
+    flushInProgress = true;
+    try {
+      const remaining = [];
+      for (const order of q) {
+        try {
+          const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(order) });
+          const data = await res.json();
+          if (!data || data.status !== "success") remaining.push(order);
+        } catch (err) {
+          remaining.push(order);
+        }
+      }
+      setQueue(remaining);
+      updateSyncBadge();
+    } finally {
+      flushInProgress = false;
+    }
+  }
+
+  window.addEventListener("online", flushQueue);
+  setInterval(flushQueue, 30000);
+  window.addEventListener("load", () => { flushQueue(); updateSyncBadge(); });
+
+  async function submitOrder() {
+    const name = document.getElementById("customer-name").value.trim();
+
+    if (state.cart.length === 0) { showError("Choose a drink."); return; }
+    const missingMilk = state.cart.find(e => !e.milk);
+    if (missingMilk) { showError(`Choose a milk for ${missingMilk.name}.`); return; }
+    if (!name) { showError("Enter a name."); return; }
+
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "submitting…";
+
+    const payload = {
+      name: name,
+      items: state.cart.map(e => ({ drink: e.name, milk: e.milk, qty: e.qty }))
+    };
+
+    let synced = false;
+    let orderNumber = null;
+
+    if (isConfigured()) {
+      try {
+        const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (!data || data.status !== "success") throw new Error((data && data.message) || "Backend did not confirm success");
+        synced = true;
+        orderNumber = data.orderNumber;
+      } catch (err) {
+        console.warn("Order could not be logged immediately — saving locally and will retry:", err);
+      }
+    } else {
+      console.warn("APPS_SCRIPT_URL not configured — order saved locally only.");
+    }
+
+    if (!synced) {
+      queueOrder(payload);
+    }
+
+    document.getElementById("confirm-name").textContent = name;
+    const orderNumEl = document.getElementById("confirm-order-number");
+    const syncNoteEl = document.getElementById("confirm-sync-note");
+
+    syncNoteEl.style.display = "none";
+    if (synced) {
+      orderNumEl.textContent = `#${orderNumber}`;
+      orderNumEl.style.display = "block";
+    } else {
+      orderNumEl.style.display = "none";
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "submit";
+
+    showScreen("confirm");
+  }
+
+  function goToOrderScreen() {
+    resetOrderForm();
+    showScreen("order");
+  }
+  document.getElementById("screen-landing").addEventListener("click", goToOrderScreen);
+  document.getElementById("screen-landing").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToOrderScreen(); }
+  });
+
+  document.getElementById("new-order-btn").addEventListener("click", () => {
+    resetOrderForm();
+    showScreen("order");
+  });
+
+  document.getElementById("submit-btn").addEventListener("click", submitOrder);
+
+  document.getElementById("customer-name").addEventListener("input", updateSubmitButtonState);
+
+  renderMenu("menu-matcha", "menu-hojicha", true);
+  renderMenu("menu-matcha-confirm", "menu-hojicha-confirm", false);
+  renderCart();
+  updateSyncBadge();
+</script>
+</body>
+</html>
