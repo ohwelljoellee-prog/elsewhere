@@ -10,7 +10,7 @@
  * Orders tabs: "Sheet1" is the template and keeps older orders. The first order of each day
  * creates a tab named for that day (e.g. "2026-10-05") with the same layout. Order numbers
  * start at 1 on each day's tab.
- *   A: done checkbox | B: # | C: name | D: drink | E: milk | F: time | G: phone (optional) | H: Notes
+ *   A: # | B: name | C: drink | D: milk | E: time | F: phone (optional) | G: Notes
  *   Notes holds the chosen options, e.g. "sweetness: half sugar; size: large".
  *
  * Menu tabs (headers on row 1, one row per item; hidden items keep their row):
@@ -29,10 +29,10 @@ const DRINKS_SHEET = "Drinks";
 const MILKS_SHEET = "Milks";
 const OPTIONS_SHEET = "Options";
 const FIRST_DATA_ROW = 3;   // Orders tabs: row 2 holds the table headers
-const COL_NUM = 2;          // Orders tabs column B (#) — writes B..H
+const COL_NUM = 1;          // Orders tabs column A (#) — writes A..G
 const WRITE_WIDTH = 7;      // #, name, drink, milk, time, phone, notes
-const COL_DRINK_DROPDOWN = 4; // Orders tabs column D
-const COL_MILK_DROPDOWN = 5;  // Orders tabs column E
+const COL_DRINK_DROPDOWN = 3; // Orders tabs column C
+const COL_MILK_DROPDOWN = 4;  // Orders tabs column D
 
 // Duplicate guard: the same order arriving again within this many seconds is not written twice.
 const DEDUPE_WINDOW_SECONDS = 300;
@@ -142,7 +142,7 @@ function dayTabName_(date) {
 
 /**
  * Returns the orders tab for one day, creating it on the first order of that day.
- * The new tab is a copy of Sheet1, so it keeps the headers, formatting, dropdowns and checkboxes,
+ * The new tab is a copy of Sheet1, so it keeps the headers, formatting and dropdowns,
  * but without Sheet1's orders. Call under the script lock.
  */
 function dayOrdersSheet_(ss, tabName, menu) {
@@ -155,7 +155,6 @@ function dayOrdersSheet_(ss, tabName, menu) {
 
   const dataRows = sheet.getMaxRows() - FIRST_DATA_ROW + 1;
   sheet.getRange(FIRST_DATA_ROW, 1, dataRows, sheet.getMaxColumns()).clearContent();
-  sheet.getRange(FIRST_DATA_ROW, 1, dataRows, 1).setValue(false); // unticked checkboxes
   setOrderDropdowns_(sheet, menu);
   return sheet;
 }
@@ -218,7 +217,7 @@ function findEmptyRows_(sheet, count) {
   if (free < count) {
     const need = count - free;
     sheet.insertRowsAfter(last, need);
-    // Carry the table's formatting, dropdowns and checkbox into the new rows.
+    // Carry the table's formatting and dropdowns into the new rows.
     const template = sheet.getRange(last, 1, 1, sheet.getLastColumn());
     // copyTo fills only the source's size, so copy the template into each new row.
     for (let i = 0; i < need; i++) {
@@ -226,7 +225,6 @@ function findEmptyRows_(sheet, count) {
       template.copyTo(target, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
       template.copyTo(target, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
     }
-    sheet.getRange(last + 1, 1, need, 1).insertCheckboxes();
   }
   return start;
 }
