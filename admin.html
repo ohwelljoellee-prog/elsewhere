@@ -1,0 +1,328 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elsewhere Admin</title>
+<style>
+  :root { --ink:#2b2b2b; --muted:#7a7a7a; --line:#e4e1da; --bg:#faf8f4; --accent:#4f6b3a; --danger:#a33; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#eee; --muted:#9a9a9a; --line:#3a3a3a; --bg:#1b1b1b; --accent:#9cbf7f; --danger:#e88; }
+  }
+  body { margin:0; font-family: -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:8px 0 16px; font-weight:600; }
+  h2 { font-size:16px; margin:0; font-weight:600; }
+  .card { background:transparent; border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .space { flex:1; }
+  button { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  input, select { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); width:100%; box-sizing:border-box; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  th, td { text-align:left; padding:10px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-weight:500; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  td.actions { text-align:right; white-space:nowrap; }
+  .thumb { width:44px; height:44px; object-fit:cover; border-radius:6px; background:var(--line); }
+  .off { opacity:.45; }
+  .tag { font-size:11px; padding:2px 6px; border-radius:6px; border:1px solid var(--line); color:var(--muted); }
+  .msg { color:var(--danger); font-size:13px; min-height:18px; margin-top:8px; }
+  .note { color:var(--muted); font-size:13px; margin:8px 0 0; }
+  .hidden { display:none !important; }
+  .tabs { display:flex; gap:8px; margin-bottom:12px; }
+  .tabs button.on { background:var(--ink); color:var(--bg); }
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--bg); color:var(--ink); width:min(420px, 92vw); padding:20px; }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  .dialog-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .checkbox { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px; color:var(--ink); }
+  .checkbox input { width:auto; }
+  @media (max-width:600px) {
+    th.hide-sm, td.hide-sm { display:none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- Login -->
+  <section id="login" class="card" style="max-width:360px; margin:40px auto;">
+    <h2>Admin login</h2>
+    <label for="password">Password</label>
+    <input type="password" id="password" autocomplete="current-password">
+    <div class="row" style="margin-top:12px;">
+      <button class="primary" id="login-btn" style="width:100%;">Log in</button>
+    </div>
+    <div class="msg" id="login-msg"></div>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="dashboard" class="hidden">
+    <div class="row" style="margin-bottom:8px;">
+      <h1 style="margin:0;">Menu</h1>
+      <div class="space"></div>
+      <button id="logout-btn">Log out</button>
+    </div>
+
+    <div class="tabs">
+      <button id="tab-drinks" class="on">Drinks</button>
+      <button id="tab-milks">Milks</button>
+      <button id="tab-options">Options</button>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <h2 id="list-title">Drinks</h2>
+        <div class="space"></div>
+        <button class="primary" id="add-btn">+ Add drink</button>
+      </div>
+      <p class="note" id="list-note"></p>
+      <div class="msg" id="list-msg"></div>
+      <table>
+        <thead id="list-head"></thead>
+        <tbody id="list-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- Add / edit popup -->
+<dialog id="item-dialog">
+  <h2 id="dialog-title">Add drink</h2>
+  <form id="item-form" method="dialog" novalidate>
+    <div id="fields"></div>
+    <datalist id="group-list"></datalist>
+    <div class="checkbox">
+      <input type="checkbox" id="f-active" checked>
+      <span>Show on the POS</span>
+    </div>
+    <div class="msg" id="dialog-msg"></div>
+    <div class="dialog-actions">
+      <button type="button" id="cancel-btn">Cancel</button>
+      <button type="submit" class="primary" id="save-btn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  let token = null;
+  let menu = emptyMenu();
+  let tab = "drinks";
+  let editing = null; // id of the item being edited, or null for add
+
+  const $ = (id) => document.getElementById(id);
+
+  function emptyMenu() { return { drinks: [], milks: [], options: [] }; }
+
+  function call(fn, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler((err) => reject(new Error(err.message || String(err))))[fn](...args);
+    });
+  }
+
+  // One entry per menu tab. Adding a new option type means adding an entry here
+  // and a matching admin save function in apps-script.gs.
+  const TABS = {
+    drinks: {
+      title: "Drinks", singular: "drink", sheet: "Drinks", save: "adminSaveDrink", items: () => menu.drinks,
+      note: "",
+      head: ["Name", "Group", "Sheet label", "Sort", ""],
+      cells: (i) => [
+        nameCell(i, i.name, i.photo_url ? `<img class="thumb" src="${escapeAttr(i.photo_url)}" alt="">` : ""),
+        escapeHtml(i.group), escapeHtml(i.sheet_label), i.sort
+      ],
+      fields: [
+        { key: "name", label: "Name", placeholder: "iced matcha latte" },
+        { key: "group", label: "Group (section heading on the POS)", placeholder: "matcha", suggest: true },
+        { key: "photo_url", label: "Photo link (optional)", placeholder: "https://… or assets/…" },
+        { key: "sheet_label", label: "Sheet label (value written to the orders sheet)", placeholder: "matcha" },
+        { key: "sort", label: "Sort order", type: "number", placeholder: "10" }
+      ]
+    },
+    milks: {
+      title: "Milks", singular: "milk", sheet: "Milks", save: "adminSaveMilk", items: () => menu.milks,
+      note: "",
+      head: ["Label", "Sheet label", "Sort", ""],
+      cells: (i) => [nameCell(i, i.label), escapeHtml(i.sheet_label), i.sort],
+      fields: [
+        { key: "label", label: "Label", placeholder: "oat" },
+        { key: "sheet_label", label: "Sheet label (value written to the orders sheet)", placeholder: "oat" },
+        { key: "sort", label: "Sort order", type: "number", placeholder: "10" }
+      ]
+    },
+    options: {
+      title: "Options", singular: "option", sheet: "Options", save: "adminSaveOption", items: () => menu.options,
+      note: "Options apply to every drink and are optional for the customer. Type a new group name to start one, e.g. sweetness or size.",
+      head: ["Option", "Group", "Sheet label", "Sort", ""],
+      cells: (i) => [nameCell(i, i.label), escapeHtml(i.group), escapeHtml(i.sheet_label), i.sort],
+      fields: [
+        { key: "group", label: "Group (shown as a heading on the POS)", placeholder: "sweetness", suggest: true },
+        { key: "label", label: "Option", placeholder: "half sugar" },
+        { key: "sheet_label", label: "Sheet label (written to the Notes column)", placeholder: "half sugar" },
+        { key: "sort", label: "Sort order", type: "number", placeholder: "10" }
+      ]
+    }
+  };
+
+  // ---- Login ----
+  async function login() {
+    const btn = $("login-btn");
+    $("login-msg").textContent = "";
+    btn.disabled = true;
+    try {
+      token = await call("adminLogin", $("password").value);
+      $("password").value = "";
+      $("login").classList.add("hidden");
+      $("dashboard").classList.remove("hidden");
+      await loadMenu();
+    } catch (err) {
+      $("login-msg").textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  $("login-btn").addEventListener("click", login);
+  $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+
+  $("logout-btn").addEventListener("click", () => {
+    token = null;
+    menu = emptyMenu();
+    $("dashboard").classList.add("hidden");
+    $("login").classList.remove("hidden");
+  });
+
+  // ---- Lists ----
+  async function loadMenu() {
+    try {
+      menu = await call("adminListMenu", token);
+      menu.options = menu.options || [];
+      $("list-msg").textContent = "";
+      render();
+    } catch (err) {
+      handleError(err, $("list-msg"));
+    }
+  }
+
+  function handleError(err, msgEl) {
+    if (/session has expired/i.test(err.message)) {
+      $("logout-btn").click();
+      $("login-msg").textContent = err.message;
+      return;
+    }
+    msgEl.textContent = err.message;
+  }
+
+  function setTab(name) {
+    tab = name;
+    Object.keys(TABS).forEach((k) => $("tab-" + k).classList.toggle("on", k === name));
+    $("list-title").textContent = TABS[name].title;
+    $("add-btn").textContent = "+ Add " + TABS[name].singular;
+    $("list-note").textContent = TABS[name].note;
+    render();
+  }
+  Object.keys(TABS).forEach((k) => $("tab-" + k).addEventListener("click", () => setTab(k)));
+
+  function nameCell(item, name, thumb = "") {
+    return `<div class="row">${thumb}<span>${escapeHtml(name)}</span>${item.active ? "" : ' <span class="tag">hidden</span>'}</div>`;
+  }
+
+  function render() {
+    const t = TABS[tab];
+    const body = $("list-body");
+    const head = $("list-head");
+    body.innerHTML = "";
+    head.innerHTML = "<tr>" + t.head.map((c, i) => `<th class="${i === 1 || i === 2 ? "hide-sm" : ""}">${c}</th>`).join("") + "</tr>";
+
+    const items = t.items();
+    if (items.length === 0) {
+      body.innerHTML = `<tr><td colspan="${t.head.length}" style="color:var(--muted)">No items yet.</td></tr>`;
+      return;
+    }
+
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      if (!item.active) tr.classList.add("off");
+      const cells = t.cells(item);
+      tr.innerHTML = cells.map((c, i) => `<td class="${i === 1 || i === 2 ? "hide-sm" : ""}">${c}</td>`).join("")
+        + `<td class="actions"><button data-edit="${item.id}">Edit</button> `
+        + `<button data-toggle="${item.id}">${item.active ? "Hide" : "Show"}</button></td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  $("list-body").addEventListener("click", async (e) => {
+    const editId = e.target.dataset.edit;
+    const toggleId = e.target.dataset.toggle;
+    if (editId) openDialog(editId);
+    if (toggleId) {
+      const t = TABS[tab];
+      const item = t.items().find((i) => i.id === toggleId);
+      try {
+        await call("adminSetActive", token, t.sheet, toggleId, !item.active);
+        await loadMenu();
+      } catch (err) {
+        handleError(err, $("list-msg"));
+      }
+    }
+  });
+
+  // ---- Add / edit popup ----
+  function openDialog(id) {
+    editing = id || null;
+    const t = TABS[tab];
+    const item = id ? t.items().find((i) => i.id === id) : {};
+    $("dialog-title").textContent = (id ? "Edit " : "Add ") + t.singular;
+
+    // Suggest existing group names so a new item can reuse one (or type a new one).
+    const groups = [...new Set(t.items().map((i) => i.group).filter(Boolean))];
+    $("group-list").innerHTML = groups.map((g) => `<option value="${escapeAttr(g)}">`).join("");
+
+    $("fields").innerHTML = t.fields.map((f) => {
+      const value = item[f.key] !== undefined ? item[f.key] : "";
+      const list = f.suggest ? ' list="group-list"' : "";
+      return `<label for="f-${f.key}">${f.label}</label>
+              <input id="f-${f.key}" type="${f.type || "text"}" placeholder="${escapeAttr(f.placeholder)}" value="${escapeAttr(value)}"${list}>`;
+    }).join("");
+    $("f-active").checked = id ? !!item.active : true;
+    $("dialog-msg").textContent = "";
+    $("save-btn").disabled = false;
+    $("item-dialog").showModal();
+    $("fields").querySelector("input").focus();
+  }
+  $("add-btn").addEventListener("click", () => openDialog(null));
+  $("cancel-btn").addEventListener("click", () => $("item-dialog").close());
+
+  $("item-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const t = TABS[tab];
+    const data = { active: $("f-active").checked };
+    if (editing) data.id = editing;
+    t.fields.forEach((f) => { data[f.key] = $(`f-${f.key}`).value.trim(); });
+    if (data.sort !== undefined) data.sort = Number(data.sort) || 0;
+
+    $("save-btn").disabled = true;
+    $("dialog-msg").textContent = "";
+    try {
+      await call(t.save, token, data);
+      $("item-dialog").close();
+      await loadMenu();
+    } catch (err) {
+      $("dialog-msg").textContent = err.message;
+      if (/session has expired/i.test(err.message)) {
+        $("item-dialog").close();
+        handleError(err, $("list-msg"));
+      }
+    } finally {
+      $("save-btn").disabled = false;
+    }
+  });
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+
+  setTab("drinks");
+</script>
+</body>
+</html>

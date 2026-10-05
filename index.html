@@ -52,7 +52,25 @@
     min-width: 140px;
     text-align: right;
   }
-  .topbar .spacer { min-width: 140px; }
+  .topbar .spacer { min-width: 220px; }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    min-width: 220px;
+  }
+  .topbar-right .date { min-width: 0; }
+  .admin-link {
+    font-size: 0.8rem;
+    color: var(--black);
+    border: 1px solid var(--black);
+    border-radius: 999px;
+    padding: 4px 12px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .admin-link[hidden] { display: none; }
 
   /* ---- Screen 1: Header / landing ---- */
   #screen-landing {
@@ -258,14 +276,22 @@
   }
   .field-row input {
     border: none;
+    border-bottom: 2px dashed var(--green); /* a blank line to write on */
     background: none;
     font-family: 'Libre Baskerville', Georgia, serif;
     color: var(--green);
     font-size: 1.7rem;
     width: 100%;
     outline: none;
+    opacity: 0.3;
+    transition: opacity 0.2s;
   }
-  .field-row input::placeholder { color: var(--green); opacity: 0.85; }
+  /* Full strength while typing, so the name is readable as it's entered. */
+  .field-row input:focus,
+  .field-row input:not(:placeholder-shown) { opacity: 1; }
+  .field-row input::placeholder { color: var(--green); }
+  .phone-row { margin-top: 12px; }
+  .phone-row input { font-size: 1.2rem; }
   .field-row img.edit-icon { width: 22px; height: 22px; flex-shrink: 0; }
 
   .error-msg {
@@ -360,19 +386,14 @@
     <div class="topbar">
       <div class="spacer"></div>
       <img src="assets/elsewhere-logo.png" alt="Elsewhere" class="logo-mark">
-      <div class="date" id="order-date"></div>
+      <div class="topbar-right">
+        <div class="date" id="order-date"></div>
+        <a class="admin-link" id="admin-link" target="_blank" rel="noopener" hidden>admin</a>
+      </div>
     </div>
 
     <div class="pos-layout">
-      <div class="menu-col">
-        <p class="section-title">matcha</p>
-        <div class="drink-grid" id="menu-matcha"></div>
-
-        <div class="divider-wave" role="presentation"></div>
-
-        <p class="section-title">hojicha</p>
-        <div class="drink-grid" id="menu-hojicha"></div>
-      </div>
+      <div class="menu-col" id="menu-order"></div>
 
       <div class="receipt-col">
         <div class="receipt-panel">
@@ -386,6 +407,10 @@
           <div id="cart-items"></div>
 
           <img src="assets/line2.svg" alt="" class="dashed-line">
+
+          <div class="field-row phone-row">
+            <input type="tel" id="customer-phone" placeholder="Phone (optional)" autocomplete="off">
+          </div>
 
           <div class="error-msg" id="order-error"></div>
 
@@ -404,15 +429,7 @@
     </div>
 
     <div class="pos-layout">
-      <div class="menu-col">
-        <p class="section-title">matcha</p>
-        <div class="drink-grid" id="menu-matcha-confirm"></div>
-
-        <div class="divider-wave" role="presentation"></div>
-
-        <p class="section-title">hojicha</p>
-        <div class="drink-grid" id="menu-hojicha-confirm"></div>
-      </div>
+      <div class="menu-col" id="menu-confirm"></div>
 
       <div class="receipt-col">
         <div class="receipt-panel confirm-panel">
@@ -432,19 +449,26 @@
   // ---- Config ----
   // Paste the Web App URL from your Google Apps Script deployment here.
   // See SETUP.md for how to create it.
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgYkhmRNeGo5EF8hoP5vJ8dh-4bWLB0TBYYKwmwKVHpfMiBaxpLHfUWAe5cti04sRy/exec";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxZDYGGZOfIL8ZjhroGB7m9JMa25hU1jWfu_Cd0uF-FIoJhpfvaV9MtoNh_1R4FgXEj/exec";
   const QUEUE_KEY = "elsewhere_pending_orders";
+  const MENU_CACHE_KEY = "elsewhere_menu";
 
-  const MENU = {
-    matcha: [
-      { id: "iced-matcha", name: "iced matcha latte", photo: "assets/iced-matcha-latte.png" },
-      { id: "strawberry-matcha", name: "strawberry matcha latte", photo: "assets/strawberry-matcha-latte.png" }
+  // Menu comes from the "Drinks" and "Milks" tabs via APPS_SCRIPT_URL.
+  // The last good copy is cached on the device, and this is only used on the very first
+  // load when there is no cache and no network.
+  const FALLBACK_MENU = {
+    drinks: [
+      { id: "iced-matcha", name: "iced matcha latte", group: "matcha", photo: "assets/iced-matcha-latte.png" },
+      { id: "strawberry-matcha", name: "strawberry matcha latte", group: "matcha", photo: "assets/strawberry-matcha-latte.png" },
+      { id: "iced-hojicha", name: "iced hojicha latte", group: "hojicha", photo: "assets/iced-hojicha-latte.png" },
+      { id: "strawberry-hojicha", name: "strawberry hojicha latte", group: "hojicha", photo: "assets/strawberry-hojicha-latte.png" }
     ],
-    hojicha: [
-      { id: "iced-hojicha", name: "iced hojicha latte", photo: "assets/iced-hojicha-latte.png" },
-      { id: "strawberry-hojicha", name: "strawberry hojicha latte", photo: "assets/strawberry-hojicha-latte.png" }
+    milks: [
+      { id: "whole", label: "whole" },
+      { id: "oat", label: "oat" }
     ]
   };
+  let MENU = FALLBACK_MENU;
 
   const state = { cart: [] }; // cart entries: { uid, drinkId, name, milk, qty }
   let uidCounter = 0;
@@ -471,25 +495,53 @@
   document.getElementById("order-date").textContent = formatDate();
   document.getElementById("confirm-date").textContent = formatDate();
 
-  function renderMenu(matchaElId, hojichaElId, interactive) {
-    const matchaEl = document.getElementById(matchaElId);
-    const hojichaEl = document.getElementById(hojichaElId);
-    matchaEl.innerHTML = "";
-    hojichaEl.innerHTML = "";
+  // One section per drink group, in the order the groups first appear in the menu.
+  function renderMenu(containerId, interactive) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
 
     function makeCard(item) {
       const el = document.createElement(interactive ? "button" : "div");
       el.className = "drink-card";
       el.type = interactive ? "button" : undefined;
       el.dataset.id = item.id;
-      el.innerHTML = `<div class="photo-wrap"><img src="${item.photo}" alt="${item.name}"></div><p class="drink-name">${item.name}</p>`;
+      el.innerHTML = `<div class="photo-wrap"><img src="${escapeAttr(item.photo || "assets/elsewhere-logo.png")}" alt="${escapeAttr(item.name)}"></div><p class="drink-name">${escapeHtml(item.name)}</p>`;
       if (interactive) el.addEventListener("click", () => addToCart(item));
       return el;
     }
 
-    MENU.matcha.forEach(item => matchaEl.appendChild(makeCard(item)));
-    MENU.hojicha.forEach(item => hojichaEl.appendChild(makeCard(item)));
+    const groups = [];
+    MENU.drinks.forEach(d => {
+      const key = d.group || "";
+      let g = groups.find(x => x.key === key);
+      if (!g) { g = { key, items: [] }; groups.push(g); }
+      g.items.push(d);
+    });
+
+    groups.forEach((g, i) => {
+      if (i > 0) {
+        const divider = document.createElement("div");
+        divider.className = "divider-wave";
+        divider.setAttribute("role", "presentation");
+        container.appendChild(divider);
+      }
+      if (g.key) {
+        const title = document.createElement("p");
+        title.className = "section-title";
+        title.textContent = g.key;
+        container.appendChild(title);
+      }
+      const grid = document.createElement("div");
+      grid.className = "drink-grid";
+      g.items.forEach(item => grid.appendChild(makeCard(item)));
+      container.appendChild(grid);
+    });
   }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
 
   // ---- Cart (multiple drinks per order) ----
   function addToCart(item) {
@@ -550,8 +602,7 @@
         <div class="item-detail">
           <p class="name">${entry.name}</p>
           <div class="milk-toggle">
-            <div class="milk-pill${entry.milk === "whole" ? " selected" : ""}" data-milk="whole">whole</div>
-            <div class="milk-pill${entry.milk === "oat" ? " selected" : ""}" data-milk="oat">oat</div>
+            ${MENU.milks.map(m => `<div class="milk-pill${entry.milk === m.id ? " selected" : ""}" data-milk="${escapeAttr(m.id)}">${escapeHtml(m.label)}</div>`).join("")}
           </div>
         </div>
         <div class="qty-controls">
@@ -619,6 +670,7 @@
   function resetOrderForm() {
     state.cart = [];
     document.getElementById("customer-name").value = "";
+    document.getElementById("customer-phone").value = "";
     renderCart();
     updateDrinkBadges();
     clearError();
@@ -638,9 +690,11 @@
   }
   function queueOrder(order) {
     const q = getQueue();
-    q.push({ ...order, queuedAt: Date.now(), localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
+    const entry = { ...order, queuedAt: Date.now(), localId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
+    q.push(entry);
     setQueue(q);
     updateSyncBadge();
+    return entry;
   }
   function updateSyncBadge() {
     const badge = document.getElementById("sync-badge");
@@ -652,32 +706,86 @@
       badge.classList.remove("visible");
     }
   }
+  // POSTs one order to the Apps Script web app. Gives up after timeoutMs so a dead
+  // connection can't leave checkout hanging; the caller then queues the order.
+  async function postOrder(payload, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload), signal: controller.signal });
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   let flushInProgress = false;
+  let flushAgain = false; // set when an order is queued during a flush, so it goes out right after
   async function flushQueue() {
-    if (!isConfigured() || flushInProgress) return;
+    if (!isConfigured()) return;
+    if (flushInProgress) { flushAgain = true; return; }
     const q = getQueue();
     if (q.length === 0) return;
     flushInProgress = true;
     try {
-      const remaining = [];
+      const sent = new Set();
       for (const order of q) {
         try {
-          const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(order) });
-          const data = await res.json();
-          if (!data || data.status !== "success") remaining.push(order);
+          const data = await postOrder(order);
+          if (data && data.status === "success") {
+            sent.add(order.localId);
+            // Let the confirmation screen (or anything else) know the real order number.
+            window.dispatchEvent(new CustomEvent("order-synced", { detail: { localId: order.localId, orderNumber: data.orderNumber } }));
+          }
         } catch (err) {
-          remaining.push(order);
+          // Still offline or timed out: leave it queued for the next attempt.
         }
       }
-      setQueue(remaining);
+      // Re-read the queue so orders added during this flush aren't lost.
+      setQueue(getQueue().filter(o => !sent.has(o.localId)));
       updateSyncBadge();
     } finally {
       flushInProgress = false;
     }
+    if (flushAgain) { flushAgain = false; flushQueue(); }
   }
 
-  window.addEventListener("online", flushQueue);
-  setInterval(flushQueue, 30000);
+  // ---- Menu from the Drinks / Milks tabs ----
+  // Shows the last good menu straight away, then refreshes it from the backend.
+  // Only re-renders when the menu has actually changed, so a refresh never clears a
+  // cart or interrupts a tap.
+  let menuJson = null;
+  function readMenuCache() {
+    try { return JSON.parse(localStorage.getItem(MENU_CACHE_KEY)); } catch { return null; }
+  }
+  function writeMenuCache(json) {
+    try { localStorage.setItem(MENU_CACHE_KEY, json); } catch {}
+  }
+  function renderAll() {
+    renderMenu("menu-order", true);
+    renderMenu("menu-confirm", false);
+    renderCart();
+    updateDrinkBadges();
+  }
+  async function loadMenu() {
+    if (!isConfigured()) return;
+    try {
+      const res = await fetch(APPS_SCRIPT_URL + "?action=menu");
+      const data = await res.json();
+      if (!data || data.status !== "success" || !data.menu) return;
+      const json = JSON.stringify(data.menu);
+      if (json === menuJson) return;
+      menuJson = json;
+      writeMenuCache(json);
+      MENU = data.menu;
+      renderAll();
+    } catch (err) {
+      // No network: keep whatever menu is already showing.
+    }
+  }
+
+  window.addEventListener("online", () => { flushQueue(); loadMenu(); });
+  setInterval(() => { flushQueue(); loadMenu(); }, 30000);
   window.addEventListener("load", () => { flushQueue(); updateSyncBadge(); });
 
   async function submitOrder() {
@@ -688,53 +796,39 @@
     if (missingMilk) { showError(`Choose a milk for ${missingMilk.name}.`); return; }
     if (!name) { showError("Enter a name."); return; }
 
-    const submitBtn = document.getElementById("submit-btn");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "submitting…";
-
+    // Save the order on this device first (fast, local). The customer doesn't wait on the network.
     const payload = {
       name: name,
-      items: state.cart.map(e => ({ drink: e.name, milk: e.milk, qty: e.qty }))
+      phone: document.getElementById("customer-phone").value.trim(),
+      items: state.cart.map(e => ({ drinkId: e.drinkId, drink: e.name, milkId: e.milk, milk: e.milk, options: e.options, qty: e.qty }))
     };
-
-    let synced = false;
-    let orderNumber = null;
-
-    if (isConfigured()) {
-      try {
-        const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
-        const data = await res.json();
-        if (!data || data.status !== "success") throw new Error((data && data.message) || "Backend did not confirm success");
-        synced = true;
-        orderNumber = data.orderNumber;
-      } catch (err) {
-        console.warn("Order could not be logged immediately — saving locally and will retry:", err);
-      }
-    } else {
-      console.warn("APPS_SCRIPT_URL not configured — order saved locally only.");
-    }
-
-    if (!synced) {
-      queueOrder(payload);
-    }
+    const queued = queueOrder(payload);
+    confirmLocalId = queued.localId;
 
     document.getElementById("confirm-name").textContent = name;
     const orderNumEl = document.getElementById("confirm-order-number");
     const syncNoteEl = document.getElementById("confirm-sync-note");
-
-    syncNoteEl.style.display = "none";
-    if (synced) {
-      orderNumEl.textContent = `#${orderNumber}`;
-      orderNumEl.style.display = "block";
-    } else {
-      orderNumEl.style.display = "none";
-    }
-
-    submitBtn.disabled = false;
-    submitBtn.textContent = "submit";
+    orderNumEl.style.display = "none";
+    syncNoteEl.textContent = "saved on this device — it will sync automatically.";
+    syncNoteEl.style.display = "block";
 
     showScreen("confirm");
+
+    // Send in the background. When the server replies, the "order-synced" listener below
+    // fills in the order number on this screen.
+    flushQueue();
   }
+
+  // Set to the local id of the order on the confirmation screen.
+  let confirmLocalId = null;
+  window.addEventListener("order-synced", (e) => {
+    if (e.detail.localId !== confirmLocalId) return;
+    const orderNumEl = document.getElementById("confirm-order-number");
+    const syncNoteEl = document.getElementById("confirm-sync-note");
+    orderNumEl.textContent = `#${e.detail.orderNumber}`;
+    orderNumEl.style.display = "block";
+    syncNoteEl.style.display = "none";
+  });
 
   function goToOrderScreen() {
     resetOrderForm();
@@ -754,10 +848,19 @@
 
   document.getElementById("customer-name").addEventListener("input", updateSubmitButtonState);
 
-  renderMenu("menu-matcha", "menu-hojicha", true);
-  renderMenu("menu-matcha-confirm", "menu-hojicha-confirm", false);
-  renderCart();
+  const cachedMenu = readMenuCache();
+  if (cachedMenu && Array.isArray(cachedMenu.drinks) && Array.isArray(cachedMenu.milks)) {
+    MENU = cachedMenu;
+    menuJson = JSON.stringify(cachedMenu);
+  }
+  renderAll();
   updateSyncBadge();
+  if (isConfigured()) {
+    const adminLink = document.getElementById("admin-link");
+    adminLink.href = APPS_SCRIPT_URL + "?page=admin";
+    adminLink.hidden = false;
+  }
+  loadMenu();
 </script>
 </body>
 </html>
